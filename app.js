@@ -1,6 +1,8 @@
 const SCREEN_WIDTH = 256;
 const SCREEN_HEIGHT = 192;
 const LAYER_COUNT = 3;
+const STAMP_IMPORT_MAX_WIDTH = Math.floor(SCREEN_WIDTH / 3);
+const STAMP_IMPORT_MAX_HEIGHT = Math.floor(SCREEN_HEIGHT / 3);
 
 const palette = [
   { name: "Soot", hex: "#17191d" },
@@ -3574,6 +3576,44 @@ function readFileAsDataURL(file) {
   });
 }
 
+async function normalizeImportedStampSource(source) {
+  const image = await loadImageElement(source);
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+
+  if (!width || !height) {
+    throw new Error("Could not read imported stamp dimensions.");
+  }
+
+  const scale = Math.min(
+    1,
+    STAMP_IMPORT_MAX_WIDTH / width,
+    STAMP_IMPORT_MAX_HEIGHT / height
+  );
+
+  if (scale >= 1) {
+    return {
+      src: source,
+      wasResized: false,
+    };
+  }
+
+  const targetWidth = clamp(Math.round(width * scale), 1, STAMP_IMPORT_MAX_WIDTH);
+  const targetHeight = clamp(Math.round(height * scale), 1, STAMP_IMPORT_MAX_HEIGHT);
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const context = canvas.getContext("2d");
+  context.imageSmoothingEnabled = false;
+  context.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+  return {
+    src: canvas.toDataURL("image/png"),
+    wasResized: true,
+  };
+}
+
 async function addStampFiles(fileList) {
   const files = [...fileList].filter((file) => file.type.startsWith("image/"));
   if (files.length === 0) {
@@ -3581,8 +3621,10 @@ async function addStampFiles(fileList) {
     return;
   }
 
+  let resizedCount = 0;
   for (const file of files) {
-    const src = await readFileAsDataURL(file);
+    const rawSource = await readFileAsDataURL(file);
+    const { src, wasResized } = await normalizeImportedStampSource(rawSource);
     const stampEntry = createStampEntry(
       {
         label: file.name.replace(/\.[^.]+$/, "") || "Stamp",
@@ -3592,11 +3634,20 @@ async function addStampFiles(fileList) {
     state.stamps.push(stampEntry);
     await loadStampEntry(stampEntry);
     state.activeStampId = stampEntry.id;
+    if (wasResized) {
+      resizedCount += 1;
+    }
   }
 
   setTool("stamp");
   markProjectDirty();
-  setStatus(`Added ${files.length} stamp${files.length === 1 ? "" : "s"} to the tray.`);
+  setStatus(
+    `Added ${files.length} stamp${files.length === 1 ? "" : "s"} to the tray${
+      resizedCount > 0
+        ? `. ${resizedCount} fit to ${STAMP_IMPORT_MAX_WIDTH}x${STAMP_IMPORT_MAX_HEIGHT}.`
+        : "."
+    }`
+  );
 }
 
 async function replaceActiveStamp(file) {
@@ -3612,7 +3663,9 @@ async function replaceActiveStamp(file) {
   }
 
   activeStamp.label = file.name.replace(/\.[^.]+$/, "") || activeStamp.label;
-  activeStamp.src = await readFileAsDataURL(file);
+  const rawSource = await readFileAsDataURL(file);
+  const { src, wasResized } = await normalizeImportedStampSource(rawSource);
+  activeStamp.src = src;
   activeStamp.loaded = false;
   activeStamp.image = null;
   activeStamp.width = 0;
@@ -3620,7 +3673,13 @@ async function replaceActiveStamp(file) {
   await loadStampEntry(activeStamp);
   setTool("stamp");
   markProjectDirty();
-  setStatus(`Replaced ${activeStamp.label.toLowerCase()} in the tray.`);
+  setStatus(
+    `Replaced ${activeStamp.label.toLowerCase()} in the tray${
+      wasResized
+        ? ` and fit it to ${STAMP_IMPORT_MAX_WIDTH}x${STAMP_IMPORT_MAX_HEIGHT}`
+        : ""
+    }.`
+  );
 }
 
 function normalizeLoadedState(settings, loadedStamps) {
