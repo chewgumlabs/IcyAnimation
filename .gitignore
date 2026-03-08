@@ -10,3 +10,4 @@ build/icon-pngs/
 build/icon.iconset/
 
 *Screenshot*.png
+!Sample_Screenshot.png
