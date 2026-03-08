@@ -83,3 +83,9 @@ Host that folder over `https://` or `http://localhost` so Chrome can install it 
 - launcher shortcuts for `New` and `Continue`
 
 This is the safest Chromebook path because it avoids Windows emulation, Android store dependencies, and Linux developer-mode requirements while still feeling like installed software.
+
+For GitHub Pages hosting, this repo can publish the Chromebook build to:
+
+- `https://chewgumlabs.github.io/IcyAnimation/`
+
+On a Chromebook, the user should open that URL in Chrome and click `Install App`.
