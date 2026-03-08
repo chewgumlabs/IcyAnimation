@@ -1,6 +1,6 @@
 # IcyAnimation
 
-IcyAnimation is a lightweight browser animation tool built to echo the low-resolution feel and frame-by-frame workflow of Nintendo DSi Flipnote while keeping its own visual identity.
+IcyAnimation is Animation Software built for just one person: Icy. And whomever else Icy allows, I suppose.
 
 ![IcyAnimation screenshot](./Sample_Screenshot.png)
 
