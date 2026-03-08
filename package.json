@@ -1,6 +1,6 @@
 {
   "name": "icyanimation",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Flipnote-inspired low-resolution animation software with kid-friendly presentation tools.",
   "main": "electron/main.js",
   "scripts": {
@@ -8,6 +8,8 @@
     "dev:desktop": "electron .",
     "build:icon": "bash scripts/make-mac-icon.sh",
     "pack": "electron-builder --dir",
+    "dist:chromebook": "node scripts/dist-chromebook.mjs",
+    "preview:chromebook": "node scripts/preview-chromebook.mjs",
     "dist:mac": "electron-builder --mac dmg zip",
     "dist:win": "electron-builder --win nsis zip"
   },

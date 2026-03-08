@@ -3,11 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#466f9f" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; img-src 'self' data: blob: file:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
     />
     <title>IcyAnimation</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -17,8 +19,10 @@
           <h1 class="brand-rainbow" aria-label="IcyAnimation">
             <span>I</span><span>c</span><span>y</span><span>A</span><span>n</span><span>i</span><span>m</span><span>a</span><span>t</span><span>i</span><span>o</span><span>n</span>
           </h1>
+          <p id="statusLine" class="status-line" aria-live="polite"></p>
         </div>
         <div class="masthead-actions">
+          <button id="installAppButton" class="button button-accent" type="button" hidden>Install App</button>
           <button id="continueProjectButton" class="button" type="button">Continue</button>
           <button id="saveProjectButton" class="button" type="button">Save</button>
           <button id="openProjectButton" class="button" type="button">Open</button>

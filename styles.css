@@ -78,11 +78,12 @@ label {
 .masthead-actions {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .masthead-actions .button {
-  min-width: 66px;
+  min-width: 78px;
   padding-inline: 8px;
 }
 

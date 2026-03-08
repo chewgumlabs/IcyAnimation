@@ -35,6 +35,7 @@ sips -z 32 32 "$MASTER_ICON" --out "$PNG_DIR/32.png" >/dev/null
 sips -z 48 48 "$MASTER_ICON" --out "$PNG_DIR/48.png" >/dev/null
 sips -z 64 64 "$MASTER_ICON" --out "$PNG_DIR/64.png" >/dev/null
 sips -z 128 128 "$MASTER_ICON" --out "$PNG_DIR/128.png" >/dev/null
+sips -z 192 192 "$MASTER_ICON" --out "$PNG_DIR/192.png" >/dev/null
 sips -z 256 256 "$MASTER_ICON" --out "$PNG_DIR/256.png" >/dev/null
 sips -z 512 512 "$MASTER_ICON" --out "$PNG_DIR/512.png" >/dev/null
 cp "$MASTER_ICON" "$PNG_DIR/1024.png"

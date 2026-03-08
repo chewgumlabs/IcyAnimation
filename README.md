@@ -60,6 +60,7 @@ Build release artifacts:
 ```bash
 npm run dist:mac
 npm run dist:win
+npm run dist:chromebook
 ```
 
 Notes:
@@ -67,3 +68,18 @@ Notes:
 - The Electron wrapper keeps the renderer sandboxed with `contextIsolation: true` and `nodeIntegration: false`.
 - Packaged mode uses native file dialogs for `Save`, `Open`, GIF export, PNG export, and all-frame export folders.
 - Native installers are easiest to produce on the matching operating system or in CI for that target.
+
+## Chromebook Dist
+
+`npm run dist:chromebook` creates a static installable app in `dist/chromebook`.
+
+`npm run preview:chromebook` builds that dist, serves it on `http://127.0.0.1:4174`, and keeps the server running so you can install and test it in Chrome on your Mac.
+
+Host that folder over `https://` or `http://localhost` so Chrome can install it as an app. The Chromebook build adds:
+
+- standalone app install with its own shelf icon
+- offline app-shell caching via a service worker
+- `.icy` file association for installed-app launches
+- launcher shortcuts for `New` and `Continue`
+
+This is the safest Chromebook path because it avoids Windows emulation, Android store dependencies, and Linux developer-mode requirements while still feeling like installed software.

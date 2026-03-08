@@ -1,0 +1,64 @@
+{
+  "id": "./",
+  "name": "IcyAnimation",
+  "short_name": "IcyAnimation",
+  "description": "Flipnote-inspired low-resolution animation software with offline support and app-style Chromebook install.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#466f9f",
+  "theme_color": "#466f9f",
+  "categories": ["graphics-design", "education", "productivity"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "./assets/pwa/192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/pwa/512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Animation",
+      "short_name": "New",
+      "description": "Open IcyAnimation and start a fresh project.",
+      "url": "./?launch=new",
+      "icons": [
+        {
+          "src": "./assets/pwa/192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Continue Last Project",
+      "short_name": "Continue",
+      "description": "Resume the most recent autosaved project.",
+      "url": "./?launch=continue",
+      "icons": [
+        {
+          "src": "./assets/pwa/192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "./",
+      "accept": {
+        "application/x-icyanimation+json": [".icy", ".icyanimation"],
+        "application/json": [".json"]
+      }
+    }
+  ]
+}

@@ -103,6 +103,8 @@ const displayCanvas = document.querySelector("#display");
 const displayContext = displayCanvas.getContext("2d");
 displayContext.imageSmoothingEnabled = false;
 const desktopApi = globalThis.icyDesktop ?? null;
+const installAppButton = document.querySelector("#installAppButton");
+const statusLine = document.querySelector("#statusLine");
 
 const stampTray = document.querySelector("#stampTray");
 const editModeLabel = document.querySelector("#editModeLabel");
@@ -167,6 +169,7 @@ let historyHandle = 0;
 let isApplyingHistory = false;
 let undoStack = [];
 let redoStack = [];
+let installPromptEvent = null;
 
 function decorateRainbowLabel(element, className, headingIndex = 0) {
   if (!element || element.dataset.rainbowDecorated === "true") {
@@ -560,8 +563,157 @@ function clearCanvas(canvas) {
 
 let lastStatusMessage = "";
 
+function renderStatus() {
+  if (!statusLine) {
+    return;
+  }
+
+  statusLine.textContent = lastStatusMessage;
+}
+
 function setStatus(message) {
   lastStatusMessage = message;
+  renderStatus();
+}
+
+function isStandaloneAppMode() {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.matchMedia("(display-mode: window-controls-overlay)").matches
+  );
+}
+
+function consumeLaunchAction() {
+  const url = new URL(window.location.href);
+  const launchAction = url.searchParams.get("launch");
+  if (!launchAction) {
+    return null;
+  }
+
+  url.searchParams.delete("launch");
+  window.history.replaceState({}, document.title, url);
+  return launchAction;
+}
+
+function updateInstallButton() {
+  if (!installAppButton) {
+    return;
+  }
+
+  if (isStandaloneAppMode()) {
+    installAppButton.hidden = false;
+    installAppButton.disabled = true;
+    installAppButton.textContent = "Installed";
+    return;
+  }
+
+  if (installPromptEvent) {
+    installAppButton.hidden = false;
+    installAppButton.disabled = false;
+    installAppButton.textContent = "Install App";
+    return;
+  }
+
+  installAppButton.hidden = true;
+  installAppButton.disabled = false;
+  installAppButton.textContent = "Install App";
+}
+
+async function promptInstallApp() {
+  if (!installPromptEvent) {
+    return;
+  }
+
+  const deferredPrompt = installPromptEvent;
+  installPromptEvent = null;
+  updateInstallButton();
+
+  try {
+    await deferredPrompt.prompt();
+    const choice = await deferredPrompt.userChoice;
+    if (choice?.outcome === "accepted") {
+      setStatus("Install accepted. ChromeOS will add IcyAnimation as an app.");
+    }
+  } catch (error) {
+    console.error(error);
+    setStatus("Install prompt failed.");
+  } finally {
+    updateInstallButton();
+  }
+}
+
+function attachInstallEvents() {
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    installPromptEvent = event;
+    updateInstallButton();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    installPromptEvent = null;
+    updateInstallButton();
+    setStatus("IcyAnimation installed. Launch it from the Chromebook shelf.");
+  });
+
+  installAppButton?.addEventListener("click", () => {
+    void promptInstallApp();
+  });
+
+  updateInstallButton();
+}
+
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator) || !window.isSecureContext) {
+    return;
+  }
+
+  try {
+    await navigator.serviceWorker.register("./sw.js");
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function attachLaunchQueueHandler() {
+  if (!("launchQueue" in window) || typeof window.launchQueue?.setConsumer !== "function") {
+    return;
+  }
+
+  window.launchQueue.setConsumer(async (launchParams) => {
+    const [fileHandle] = launchParams.files ?? [];
+    if (!fileHandle?.getFile) {
+      return;
+    }
+
+    try {
+      await openProjectFile(await fileHandle.getFile());
+    } catch (error) {
+      console.error(error);
+      setStatus("Open project failed. Choose an .icy IcyAnimation project file.");
+    }
+  });
+}
+
+async function applyLaunchAction() {
+  const launchAction = consumeLaunchAction();
+  if (!launchAction) {
+    return;
+  }
+
+  switch (launchAction) {
+    case "continue":
+      if (autosaveAvailable) {
+        await continueLastProject();
+      } else {
+        setStatus("No saved project is available yet.");
+      }
+      break;
+    case "new":
+      setStatus("Started a new animation.");
+      break;
+    default:
+      break;
+  }
 }
 
 function chooseColor(layerIndex) {
@@ -3221,15 +3373,156 @@ async function saveBlobWithPicker(blob, suggestedName, options = {}) {
   return true;
 }
 
+async function saveFilesWithPicker(files, options = {}) {
+  const {
+    suggestedDirectoryName = "icyanimation-frames",
+    description = "File",
+    accept = {},
+  } = options;
+
+  if (desktopApi?.saveFilesToDirectory) {
+    try {
+      return await desktopApi.saveFilesToDirectory({
+        suggestedDirectoryName,
+        files: await Promise.all(
+          files.map(async (file) => ({
+            name: file.name,
+            bytes: file.bytes ?? (file.blob ? await file.blob.arrayBuffer() : new ArrayBuffer(0)),
+          }))
+        ),
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  if (typeof window.showDirectoryPicker === "function") {
+    try {
+      const directoryHandle = await window.showDirectoryPicker({
+        id: suggestedDirectoryName,
+        mode: "readwrite",
+      });
+
+      for (const file of files) {
+        const fileHandle = await directoryHandle.getFileHandle(file.name, { create: true });
+        const writable = await fileHandle.createWritable();
+        if (file.blob) {
+          await writable.write(file.blob);
+        } else {
+          await writable.write(file.bytes ?? new ArrayBuffer(0));
+        }
+        await writable.close();
+      }
+
+      return {
+        canceled: false,
+        count: files.length,
+      };
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return {
+          canceled: true,
+          count: 0,
+        };
+      }
+      console.error(error);
+    }
+  }
+
+  let savedCount = 0;
+  for (const file of files) {
+    const blob =
+      file.blob ?? new Blob([file.bytes ?? new ArrayBuffer(0)], { type: file.type ?? "application/octet-stream" });
+    const didSave = await saveBlobWithPicker(blob, file.name, {
+      description,
+      accept,
+    });
+    if (!didSave) {
+      return {
+        canceled: savedCount === 0,
+        count: savedCount,
+      };
+    }
+    savedCount += 1;
+  }
+
+  return {
+    canceled: false,
+    count: savedCount,
+  };
+}
+
 async function canvasToBlob(canvas, type = "image/png") {
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob), type);
   });
 }
 
+async function waitForNextPaint() {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(resolve);
+    });
+  });
+}
+
+async function ensureExportAssetsReady() {
+  const pendingStamps = state.stamps.filter(
+    (stampEntry) => !stampEntry.loaded && typeof stampEntry.src === "string" && stampEntry.src.length > 0
+  );
+
+  if (pendingStamps.length === 0) {
+    return;
+  }
+
+  await Promise.all(pendingStamps.map((stampEntry) => loadStampEntry(stampEntry)));
+  await waitForNextPaint();
+}
+
+async function isValidGifBlob(blob) {
+  if (!(blob instanceof Blob) || blob.size < 32) {
+    return false;
+  }
+
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const header = String.fromCharCode(...bytes.slice(0, 6));
+  return (header === "GIF89a" || header === "GIF87a") && bytes[bytes.length - 1] === 59;
+}
+
+async function buildGifBlobWithRetry(maxAttempts = 3) {
+  let attempt = 0;
+
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    await ensureExportAssetsReady();
+    await waitForNextPaint();
+
+    const frameCanvases = state.frames.map((_, index) =>
+      renderFrameToCanvas(index, { includeHiddenLayers: true })
+    );
+    const gifBlob = createGifBlob(frameCanvases, state.fps);
+
+    if (await isValidGifBlob(gifBlob)) {
+      return {
+        ok: true,
+        blob: gifBlob,
+        attempt,
+      };
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 80));
+  }
+
+  return {
+    ok: false,
+    blob: null,
+    attempt,
+  };
+}
+
 async function downloadCanvas(canvas, fileName, options = {}) {
   const {
-    preferDialog = Boolean(desktopApi?.saveFile),
+    preferDialog = Boolean(desktopApi?.saveFile) || typeof window.showSaveFilePicker === "function",
     description = "PNG Image",
     accept = {
       "image/png": [".png"],
@@ -3263,13 +3556,6 @@ async function exportCurrentFrame() {
 }
 
 async function exportAllFramesToDesktopDirectory() {
-  if (!desktopApi?.saveFilesToDirectory) {
-    return {
-      canceled: true,
-      count: 0,
-    };
-  }
-
   const files = [];
   for (let index = 0; index < state.frames.length; index += 1) {
     const frameCanvas = renderFrameToCanvas(index, { includeHiddenLayers: true });
@@ -3280,13 +3566,17 @@ async function exportAllFramesToDesktopDirectory() {
 
     files.push({
       name: `icyanimation-frame-${index + 1}.png`,
-      bytes: await blob.arrayBuffer(),
+      blob,
+      type: "image/png",
     });
   }
 
-  return desktopApi.saveFilesToDirectory({
+  return saveFilesWithPicker(files, {
     suggestedDirectoryName: "icyanimation-frames",
-    files,
+    description: "PNG Image",
+    accept: {
+      "image/png": [".png"],
+    },
   });
 }
 
@@ -3294,38 +3584,19 @@ async function exportAllFrames() {
   settleTransientState({ preserveObjectSelection: true });
   let exportedCount = 0;
 
-  if (desktopApi?.saveFilesToDirectory) {
-    try {
-      const result = await exportAllFramesToDesktopDirectory();
-      refreshUI();
-      if (result?.canceled) {
-        return;
-      }
-
-      exportedCount = Number(result?.count) || state.frames.length;
-    } catch (error) {
-      console.error(error);
-      refreshUI();
-      setStatus("All-frames export failed.");
+  try {
+    const result = await exportAllFramesToDesktopDirectory();
+    refreshUI();
+    if (result?.canceled) {
       return;
     }
-  } else {
-    const frameCount = state.frames.length;
 
-    for (let index = 0; index < frameCount; index += 1) {
-      const frameCanvas = renderFrameToCanvas(index, { includeHiddenLayers: true });
-      const didDownload = await downloadCanvas(frameCanvas, `icyanimation-frame-${index + 1}.png`, {
-        preferDialog: false,
-      });
-      if (!didDownload) {
-        break;
-      }
-
-      exportedCount += 1;
-      await new Promise((resolve) => window.setTimeout(resolve, 80));
-    }
-
+    exportedCount = Number(result?.count) || state.frames.length;
+  } catch (error) {
+    console.error(error);
     refreshUI();
+    setStatus("All-frames export failed.");
+    return;
   }
 
   if (exportedCount > 0) {
@@ -3549,21 +3820,27 @@ async function exportGif() {
   settleTransientState({ preserveObjectSelection: true });
   setStatus("Building GIF...");
 
-  const frameCanvases = state.frames.map((_, index) =>
-    renderFrameToCanvas(index, { includeHiddenLayers: true })
-  );
-  const gifBlob = createGifBlob(frameCanvases, state.fps);
-  const didSave = desktopApi?.saveFile
-    ? await saveBlobWithPicker(gifBlob, "icyanimation.gif", {
-        description: "GIF Image",
-        accept: {
-          "image/gif": [".gif"],
-        },
-      })
-    : (downloadBlob(gifBlob, "icyanimation.gif"), true);
+  const gifBuild = await buildGifBlobWithRetry();
+  if (!gifBuild.ok || !gifBuild.blob) {
+    refreshUI();
+    setStatus("GIF export failed after 3 attempts.");
+    return;
+  }
+
+  const gifBlob = gifBuild.blob;
+  const didSave = await saveBlobWithPicker(gifBlob, "icyanimation.gif", {
+    description: "GIF Image",
+    accept: {
+      "image/gif": [".gif"],
+    },
+  });
   refreshUI();
   if (didSave) {
-    setStatus(`Exported ${state.frames.length} frame${state.frames.length === 1 ? "" : "s"} as a GIF.`);
+    setStatus(
+      `Exported ${state.frames.length} frame${state.frames.length === 1 ? "" : "s"} as a GIF${
+        gifBuild.attempt > 1 ? ` on attempt ${gifBuild.attempt}` : ""
+      }.`
+    );
   }
 }
 
@@ -4149,6 +4426,8 @@ function attachEvents() {
 
 async function init() {
   decoratePanelHeadings();
+  attachInstallEvents();
+  attachLaunchQueueHandler();
   updateAutosaveAvailability();
   autosaveArmed = !autosaveAvailable;
   state.stamps = defaultStampSources.map((entry) => createStampEntry(entry));
@@ -4160,9 +4439,12 @@ async function init() {
   state.backgroundClips = [initialBackgroundClip];
   state.backgroundAssignments = [initialBackgroundClip.id];
   attachEvents();
+  renderStatus();
   refreshUI();
   await Promise.all(state.stamps.map((stampEntry) => loadStampEntry(stampEntry)));
   resetHistoryWithCurrentState();
+  await registerServiceWorker();
+  await applyLaunchAction();
   refreshUI();
 }
 
