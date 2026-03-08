@@ -1,0 +1,12 @@
+.DS_Store
+
+node_modules/
+dist/
+
+build/.DS_Store
+build/icon-master.png
+build/icon.png
+build/icon-pngs/
+build/icon.iconset/
+
+*Screenshot*.png

@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data: blob: file:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+    />
+    <title>IcyAnimation</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="masthead panel">
+        <div class="brand-lockup">
+          <h1 class="brand-rainbow" aria-label="IcyAnimation">
+            <span>I</span><span>c</span><span>y</span><span>A</span><span>n</span><span>i</span><span>m</span><span>a</span><span>t</span><span>i</span><span>o</span><span>n</span>
+          </h1>
+        </div>
+        <div class="masthead-actions">
+          <button id="continueProjectButton" class="button" type="button">Continue</button>
+          <button id="saveProjectButton" class="button" type="button">Save</button>
+          <button id="openProjectButton" class="button" type="button">Open</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="stamp-column">
+          <section class="panel stamp-panel">
+            <h2>Stamps</h2>
+            <div class="button-grid button-grid-scales">
+              <button class="button stamp-scale-button is-active" data-scale="1" type="button">1x</button>
+              <button class="button stamp-scale-button" data-scale="2" type="button">2x</button>
+              <button class="button stamp-scale-button" data-scale="3" type="button">3x</button>
+            </div>
+            <div id="stampTray" class="stamp-tray"></div>
+            <div class="button-grid">
+              <button id="addStampButton" class="button" type="button">ADD</button>
+              <button id="replaceStampButton" class="button" type="button">RPL</button>
+            </div>
+          </section>
+
+          <section class="panel history-panel">
+            <div class="history-buttons">
+              <button id="undoButton" class="button" type="button">Undo</button>
+              <button id="redoButton" class="button" type="button">Redo</button>
+            </div>
+          </section>
+        </aside>
+
+        <div class="center-column">
+          <section class="screen-panel panel">
+            <div class="screen-wrap">
+              <div class="screen-frame">
+                <canvas id="display" width="256" height="192" aria-label="Animation canvas"></canvas>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel export-panel">
+            <h2>Export</h2>
+            <div class="button-grid button-grid-export">
+              <button id="exportFrameButton" class="button" type="button">
+                This Frame
+              </button>
+              <button id="exportAllFramesButton" class="button" type="button">
+                All Frames
+              </button>
+              <button id="exportGifButton" class="button" type="button">
+                GIF
+              </button>
+            </div>
+          </section>
+
+          <div class="track-row">
+            <section class="panel timeline-panel">
+              <div class="section-head">
+                <h2>Drawings</h2>
+                <button id="soloDrawingsButton" class="button button-mini" type="button">Solo</button>
+              </div>
+              <div id="timeline" class="timeline"></div>
+            </section>
+
+            <section class="panel frames-panel">
+              <h2>Frames</h2>
+              <div class="button-grid button-grid-wide">
+                <button id="newFrameButton" class="button" type="button">New</button>
+                <button id="duplicateFrameButton" class="button" type="button">Clone</button>
+                <button id="clearFrameButton" class="button" type="button">Clear</button>
+                <button id="deleteFrameButton" class="button" type="button">Delete</button>
+              </div>
+            </section>
+          </div>
+
+          <div class="track-row">
+            <section class="panel background-panel">
+              <div class="section-head">
+                <h2>Background</h2>
+                <button id="soloBackgroundTrackButton" class="button button-mini" type="button">Solo</button>
+              </div>
+              <div id="backgroundTimeline" class="background-timeline"></div>
+            </section>
+
+            <section class="panel background-actions-panel">
+              <h2>Background</h2>
+              <div class="button-grid button-grid-wide">
+                <button id="newBackgroundButton" class="button" type="button">New</button>
+                <button id="splitBackgroundButton" class="button" type="button">Split</button>
+                <button id="holdBackgroundButton" class="button" type="button">Extend</button>
+                <button id="clearBackgroundButton" class="button" type="button">Clear</button>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <aside class="control-column">
+          <section class="panel">
+            <h2>Tools</h2>
+            <div class="button-grid button-grid-tools">
+              <button class="button tool-button is-active" data-tool="pen" type="button">Pen</button>
+              <button class="button tool-button" data-tool="eraser" type="button">Eraser</button>
+              <button class="button tool-button" data-tool="stamp" type="button">Stamp</button>
+              <button class="button tool-button" data-tool="lasso" type="button">Lasso</button>
+              <button class="button tool-button" data-tool="move" type="button">Move</button>
+              <button class="button tool-button" data-tool="object-delete" type="button">Delete</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2>Presets</h2>
+            <div class="button-grid button-grid-wide preset-grid">
+              <button class="button preset-button" data-preset="title" type="button">Title</button>
+              <button class="button preset-button" data-preset="note" type="button">Note</button>
+              <button class="button preset-button" data-preset="connector" type="button">Connector</button>
+              <div class="note-color-cell">
+                <div id="noteColorPanel" class="note-color-panel"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2>Brush</h2>
+            <div class="button-grid button-grid-brush">
+              <button class="button brush-button is-active" data-size="1" type="button">1x</button>
+              <button class="button brush-button" data-size="2" type="button">2x</button>
+              <button class="button brush-button" data-size="4" type="button">4x</button>
+              <button class="button brush-button" data-size="6" type="button">6x</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2>Layers</h2>
+            <div id="layersPanel" class="layers-panel"></div>
+          </section>
+
+          <section class="panel playback-panel">
+            <h2>Playback</h2>
+            <button id="playButton" class="button button-accent playback-main-button" type="button">Play</button>
+            <div class="button-grid button-grid-playback">
+              <button id="prevFrameButton" class="button" type="button">Prev</button>
+              <button id="nextFrameButton" class="button" type="button">Next</button>
+              <label class="toggle toggle-compact">
+                <input id="onionToggle" type="checkbox" checked />
+                Onion
+              </label>
+            </div>
+          </section>
+
+          <section class="panel framerate-panel">
+            <h2>Framerate</h2>
+            <div class="button-grid button-grid-fps">
+              <button class="button fps-button" data-fps="4" type="button">4fps</button>
+              <button class="button fps-button is-active" data-fps="12" type="button">12fps</button>
+              <button class="button fps-button" data-fps="24" type="button">24fps</button>
+              <button class="button fps-button" data-fps="30" type="button">30fps</button>
+            </div>
+          </section>
+
+          <section class="panel shortcuts">
+            <h2>Keys</h2>
+            <p><kbd>↑</kbd> New frame <kbd>←</kbd><kbd>→</kbd> Prev / next <kbd>O</kbd> Onion</p>
+            <p><kbd>B</kbd> Pen <kbd>E</kbd> Eraser <kbd>T</kbd> Stamp <kbd>S</kbd> Select <kbd>L</kbd> Lasso <kbd>V</kbd> Move <kbd>X</kbd> Delete</p>
+            <p><kbd>P</kbd> Note preset <kbd>Space</kbd> Play</p>
+            <p><kbd>N</kbd> New <kbd>D</kbd> Clone <kbd>Del</kbd> Delete</p>
+            <p><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Layer <kbd>[</kbd><kbd>]</kbd> Brush</p>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <input id="addStampInput" type="file" accept="image/png,image/*" multiple hidden />
+    <input id="replaceStampInput" type="file" accept="image/png,image/*" hidden />
+    <input id="openProjectInput" type="file" accept=".icy,.icyanimation,.json,application/json" hidden />
+
+    <script src="./app.js"></script>
+  </body>
+</html>

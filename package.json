@@ -1,0 +1,56 @@
+{
+  "name": "icyanimation",
+  "version": "1.0.0",
+  "description": "Flipnote-inspired low-resolution animation software with kid-friendly presentation tools.",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev:desktop": "electron .",
+    "build:icon": "bash scripts/make-mac-icon.sh",
+    "pack": "electron-builder --dir",
+    "dist:mac": "electron-builder --mac dmg zip",
+    "dist:win": "electron-builder --win nsis zip"
+  },
+  "build": {
+    "appId": "com.icyanimation.app",
+    "productName": "IcyAnimation",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "files": [
+      "index.html",
+      "styles.css",
+      "app.js",
+      "README.md",
+      "stamps/**/*",
+      "electron/**/*"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "asar": true,
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.graphics-design",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^40.8.0",
+    "electron-builder": "^26.8.1",
+    "icon-gen": "^5.0.0"
+  }
+}
