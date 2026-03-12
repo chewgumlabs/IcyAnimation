@@ -257,6 +257,7 @@ h2 {
 }
 
 .screen-panel {
+  position: relative;
   display: grid;
   gap: 6px;
   min-width: 0;
@@ -349,6 +350,20 @@ h2 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.room-mode-badge {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 3px;
+  padding: 2px 6px;
+  border: 2px solid var(--line);
+  box-shadow: 1px 1px 0 var(--line);
+  background: #c3cbd4;
+  color: #4d5359;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .button-grid {
@@ -713,6 +728,29 @@ h2 {
   scrollbar-color: #4f7ec6 #d2e2f6;
 }
 
+.room-mode-background-notice {
+  margin-top: 5px;
+  padding: 3px 6px;
+  border: 2px solid var(--line);
+  background: #c5ccd6;
+  color: #4b5056;
+  font-size: 0.56rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.88;
+}
+
+body.is-room-mode .background-panel,
+body.is-room-mode .background-actions-panel {
+  background: #cfd7e0;
+}
+
+body.is-room-mode .background-timeline,
+body.is-room-mode .background-actions-panel .button,
+body.is-room-mode #soloBackgroundTrackButton {
+  opacity: 0.62;
+}
+
 .timeline::-webkit-scrollbar,
 .background-timeline::-webkit-scrollbar {
   height: 12px;
@@ -847,4 +885,129 @@ kbd {
   font-family: inherit;
   font-size: 0.52rem;
   margin-right: 1px;
+}
+
+/* ── Key Mode ── */
+
+.key-mode-badge {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 3px;
+  padding: 2px 6px;
+  border: 2px solid var(--line);
+  box-shadow: 1px 1px 0 var(--line);
+  background: #e8c97a;
+  color: #5a4218;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body.is-key-mode .background-panel,
+body.is-key-mode .background-actions-panel {
+  background: #cfd7e0;
+}
+
+body.is-key-mode .background-timeline,
+body.is-key-mode .background-actions-panel .button,
+body.is-key-mode #soloBackgroundTrackButton {
+  opacity: 0.62;
+}
+
+/* ── Chew Dialog ── */
+
+.chew-dialog[hidden] {
+  display: none;
+}
+
+.chew-dialog {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.chew-dialog__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 17, 17, 0.5);
+}
+
+.chew-dialog__box {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  width: min(420px, calc(100vw - 24px));
+  min-height: 140px;
+  padding: 10px 12px 10px 8px;
+  border: 3px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius-panel);
+}
+
+.chew-dialog__portrait {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  margin-top: 2px;
+}
+
+.chew-dialog__content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 120px;
+}
+
+.chew-dialog__speaker {
+  margin: 0 0 4px;
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.chew-dialog__text {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.chew-dialog__actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.chew-dialog__btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 5px 12px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--accent);
+  color: #fff3ed;
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 1px 1px 0 var(--line);
+}
+
+.chew-dialog__btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
 }

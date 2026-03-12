@@ -123,12 +123,12 @@ ipcMain.handle("icy:save-files-to-directory", async (event, payload = {}) => {
 ipcMain.handle("icy:open-project-file", async (event) => {
   const browserWindow = getMainWindowFromSender(event.sender);
   const result = await dialog.showOpenDialog(browserWindow, {
-    title: "Open IcyAnimation Project",
+    title: "Open IcyAnimation Project or Room",
     properties: ["openFile"],
     filters: [
       {
         name: "IcyAnimation Projects",
-        extensions: ["icy"],
+        extensions: ["icy", "room", "Room", "Parchment", "SpecialKey"],
       },
       {
         name: "JSON Files",

@@ -1,4 +1,4 @@
-const CACHE_NAME = "icyanimation-chromebook-v1";
+const CACHE_NAME = "icyanimation-chromebook-v2";
 const APP_SHELL = [
   "./",
   "./index.html",

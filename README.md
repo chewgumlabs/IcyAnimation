@@ -24,7 +24,7 @@ IcyAnimation is Animation Software built for just one person: Icy. And whomever 
 
 ## Run
 
-Open [/Volumes/Storage/Help/index.html](/Volumes/Storage/Help/index.html) directly in a browser, or serve the folder locally:
+Open [/Volumes/Storage/IcyAnimation/index.html](/Volumes/Storage/IcyAnimation/index.html) directly in a browser, or serve the folder locally:
 
 ```bash
 python3 -m http.server 4173

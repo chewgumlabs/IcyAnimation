@@ -20,6 +20,7 @@
             <span>I</span><span>c</span><span>y</span><span>A</span><span>n</span><span>i</span><span>m</span><span>a</span><span>t</span><span>i</span><span>o</span><span>n</span>
           </h1>
           <p id="statusLine" class="status-line" aria-live="polite"></p>
+          <p id="roomModeBadge" class="room-mode-badge" hidden>ROOM MODE</p>
         </div>
         <div class="masthead-actions">
           <button id="installAppButton" class="button button-accent" type="button" hidden>Install App</button>
@@ -58,6 +59,17 @@
             <div class="screen-wrap">
               <div class="screen-frame">
                 <canvas id="display" width="256" height="192" aria-label="Animation canvas"></canvas>
+              </div>
+            </div>
+            <div id="chewDialog" class="chew-dialog" hidden>
+              <div class="chew-dialog__backdrop"></div>
+              <div class="chew-dialog__box">
+                <img id="chewDialogPortrait" class="chew-dialog__portrait" src="./assets/chew/chew-happy.png" alt="" data-speaker="chew" />
+                <div class="chew-dialog__content">
+                  <p class="chew-dialog__speaker">Chew</p>
+                  <p id="chewDialogText" class="chew-dialog__text"></p>
+                  <div id="chewDialogActions" class="chew-dialog__actions"></div>
+                </div>
               </div>
             </div>
           </section>
@@ -104,6 +116,9 @@
                 <button id="soloBackgroundTrackButton" class="button button-mini" type="button">Solo</button>
               </div>
               <div id="backgroundTimeline" class="background-timeline"></div>
+              <div id="roomModeBackgroundNotice" class="room-mode-background-notice" hidden>
+                ROOM COLORS ARE NOT EDITABLE
+              </div>
             </section>
 
             <section class="panel background-actions-panel">
@@ -195,7 +210,7 @@
 
     <input id="addStampInput" type="file" accept="image/png,image/*" multiple hidden />
     <input id="replaceStampInput" type="file" accept="image/png,image/*" hidden />
-    <input id="openProjectInput" type="file" accept=".icy,.icyanimation,.json,application/json" hidden />
+    <input id="openProjectInput" type="file" accept=".room,.Room,.icy,.icyanimation,.Parchment,.json,application/json" hidden />
 
     <script src="./app.js"></script>
   </body>

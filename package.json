@@ -1,6 +1,6 @@
 {
   "name": "icyanimation",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Flipnote-inspired low-resolution animation software with kid-friendly presentation tools.",
   "main": "electron/main.js",
   "scripts": {
@@ -23,6 +23,7 @@
       "app.js",
       "README.md",
       "stamps/**/*",
+      "assets/**/*",
       "electron/**/*"
     ],
     "directories": {

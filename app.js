@@ -93,6 +93,10 @@ const selectionState = {
   offsetY: 0,
 };
 
+function cloneJson(value) {
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+}
+
 const tintCanvas = document.createElement("canvas");
 tintCanvas.width = SCREEN_WIDTH;
 tintCanvas.height = SCREEN_HEIGHT;
@@ -105,6 +109,7 @@ displayContext.imageSmoothingEnabled = false;
 const desktopApi = globalThis.icyDesktop ?? null;
 const installAppButton = document.querySelector("#installAppButton");
 const statusLine = document.querySelector("#statusLine");
+const roomModeBadge = document.querySelector("#roomModeBadge");
 
 const stampTray = document.querySelector("#stampTray");
 const editModeLabel = document.querySelector("#editModeLabel");
@@ -121,6 +126,7 @@ const timelinePanel = document.querySelector(".timeline-panel");
 const framesPanel = document.querySelector(".frames-panel");
 const backgroundPanel = document.querySelector(".background-panel");
 const backgroundActionsPanel = document.querySelector(".background-actions-panel");
+const roomModeBackgroundNotice = document.querySelector("#roomModeBackgroundNotice");
 const soloDrawingsButton = document.querySelector("#soloDrawingsButton");
 const soloBackgroundTrackButton = document.querySelector("#soloBackgroundTrackButton");
 const newFrameButton = document.querySelector("#newFrameButton");
@@ -162,6 +168,8 @@ const AUTOSAVE_STORAGE_KEY = "icyanimation-last-project-v1";
 const AUTOSAVE_DELAY_MS = 1200;
 const HISTORY_LIMIT = 24;
 const HISTORY_DELAY_MS = 180;
+const DEFAULT_PROJECT_NAME = "icyanimation-project.icy";
+const DEFAULT_ROOM_NAME = "treefort-room.room";
 let autosaveHandle = 0;
 let autosaveAvailable = false;
 let autosaveArmed = false;
@@ -170,6 +178,109 @@ let isApplyingHistory = false;
 let undoStack = [];
 let redoStack = [];
 let installPromptEvent = null;
+let currentProjectFileName = DEFAULT_PROJECT_NAME;
+let currentTreefortRoom = null;
+let currentParchment = null;
+
+const chewDialog = document.querySelector("#chewDialog");
+const chewDialogPortrait = document.querySelector("#chewDialogPortrait");
+const chewDialogText = document.querySelector("#chewDialogText");
+const chewDialogActions = document.querySelector("#chewDialogActions");
+
+const CHEW_FRAMES = ["./assets/chew/chew-happy.png", "./assets/chew/chew-talk.png"];
+let chewDialogAnimInterval = 0;
+
+function normalizeTreefortRoomMeta(projectData) {
+  if (!projectData?.treefortRoom || typeof projectData.treefortRoom !== "object" || Array.isArray(projectData.treefortRoom)) {
+    return null;
+  }
+
+  return cloneJson(projectData.treefortRoom);
+}
+
+function getProjectExtension(fileName) {
+  const match = /\.([a-z0-9]+)$/i.exec(fileName ?? "");
+  return match ? `.${match[1].toLowerCase()}` : "";
+}
+
+function isRoomMode() {
+  return Boolean(currentTreefortRoom?.roomMode?.active);
+}
+
+function isKeyMode() {
+  return Boolean(currentParchment);
+}
+
+function isLockedMode() {
+  return isRoomMode() || isKeyMode();
+}
+
+function getRoomBackgroundNotice() {
+  const notice = currentTreefortRoom?.roomMode?.backgroundNotice;
+  return typeof notice === "string" && notice.trim().length > 0 ? notice : "ROOM COLORS ARE NOT EDITABLE";
+}
+
+function getSuggestedProjectName() {
+  const baseName =
+    typeof currentProjectFileName === "string" && currentProjectFileName.trim().length > 0
+      ? currentProjectFileName.trim()
+      : isRoomMode()
+        ? DEFAULT_ROOM_NAME
+        : DEFAULT_PROJECT_NAME;
+
+  if (!isRoomMode()) {
+    return baseName;
+  }
+
+  if (getProjectExtension(baseName) === ".room") {
+    return baseName;
+  }
+
+  return `${baseName.replace(/\.[^.]+$/, "") || "treefort-room"}.room`;
+}
+
+function getOpenProjectFailureText() {
+  return "Open project failed. Choose an .icy, .room, .Parchment, or .Room file.";
+}
+
+function setRoomModeStatusElements() {
+  const roomMode = isRoomMode();
+  const keyMode = isKeyMode();
+  const locked = roomMode || keyMode;
+  document.body.classList.toggle("is-room-mode", roomMode && !keyMode);
+  document.body.classList.toggle("is-key-mode", keyMode);
+
+  if (roomModeBadge) {
+    if (keyMode) {
+      roomModeBadge.hidden = false;
+      roomModeBadge.textContent = "KEY MODE";
+      roomModeBadge.className = "key-mode-badge";
+    } else if (roomMode) {
+      roomModeBadge.hidden = false;
+      roomModeBadge.textContent = "ROOM MODE";
+      roomModeBadge.className = "room-mode-badge";
+    } else {
+      roomModeBadge.hidden = true;
+      roomModeBadge.className = "room-mode-badge";
+    }
+  }
+
+  if (roomModeBackgroundNotice) {
+    roomModeBackgroundNotice.hidden = !locked;
+    roomModeBackgroundNotice.textContent = keyMode
+      ? "DRAW YOUR KEY ON THIS CANVAS"
+      : getRoomBackgroundNotice();
+  }
+}
+
+function blockRoomModeAction(message) {
+  if (!isLockedMode()) {
+    return false;
+  }
+
+  setStatus(message);
+  return true;
+}
 
 function decorateRainbowLabel(element, className, headingIndex = 0) {
   if (!element || element.dataset.rainbowDecorated === "true") {
@@ -283,7 +394,13 @@ async function continueLastProject() {
     autosaveAvailable = true;
     autosaveArmed = true;
     await writeAutosaveSnapshot();
-    setStatus("Continued last project.");
+    if (isKeyMode()) {
+      setStatus("Continued key drawing.");
+    } else if (isRoomMode()) {
+      setStatus("Continued room drawing.");
+    } else {
+      setStatus("Continued last project.");
+    }
   } catch (error) {
     console.error(error);
     storage.removeItem(AUTOSAVE_STORAGE_KEY);
@@ -689,7 +806,7 @@ function attachLaunchQueueHandler() {
       await openProjectFile(await fileHandle.getFile());
     } catch (error) {
       console.error(error);
-      setStatus("Open project failed. Choose an .icy IcyAnimation project file.");
+      setStatus(getOpenProjectFailureText());
     }
   });
 }
@@ -1135,7 +1252,7 @@ function createProjectSnapshot(options = {}) {
     stopPlayback();
   }
 
-  return {
+  const snapshot = {
     version: 1,
     app: "IcyAnimation",
     savedAt: includeSavedAt ? new Date().toISOString() : null,
@@ -1164,6 +1281,16 @@ function createProjectSnapshot(options = {}) {
     backgroundClips: state.backgroundClips.map((backgroundClip) => serializeFrameLike(backgroundClip)),
     backgroundAssignments: [...state.backgroundAssignments],
   };
+
+  if (currentTreefortRoom) {
+    snapshot.treefortRoom = cloneJson(currentTreefortRoom);
+  }
+
+  if (currentParchment) {
+    snapshot.parchment = cloneJson(currentParchment);
+  }
+
+  return snapshot;
 }
 
 async function hydrateMaskCanvas(targetCanvas, source) {
@@ -2175,6 +2302,7 @@ function renderThumbnail(canvas, frameIndex) {
 function renderTimeline(options = {}) {
   const { revealActive = false } = options;
   timeline.innerHTML = "";
+  const roomMode = isLockedMode();
 
   state.frames.forEach((_, index) => {
     const button = document.createElement("button");
@@ -2182,7 +2310,11 @@ function renderTimeline(options = {}) {
     const isCurrentFrame = index === state.currentFrameIndex;
     const isSelectedTrackFrame = isCurrentFrame && state.editTarget === "frame";
     button.className = `frame-tile${isCurrentFrame ? " is-current" : ""}${isSelectedTrackFrame ? " is-selected" : ""}`;
+    button.disabled = roomMode;
     button.addEventListener("click", () => {
+      if (roomMode) {
+        return;
+      }
       state.editTarget = "frame";
       goToFrame(index);
     });
@@ -2275,6 +2407,7 @@ function renderBackgroundTimeline(options = {}) {
 
   backgroundTimeline.innerHTML = "";
   const segments = collectBackgroundSegments();
+  const roomMode = isLockedMode();
 
   segments.forEach((segment) => {
     const button = document.createElement("button");
@@ -2287,7 +2420,11 @@ function renderBackgroundTimeline(options = {}) {
     button.type = "button";
     button.className = `background-tile${isCurrentSegment ? " is-current" : ""}${isActiveSegment ? " is-selected" : ""}${segment.backgroundId ? "" : " is-empty"}`;
     button.style.width = `${segment.hold * 68 + Math.max(0, segment.hold - 1) * 4}px`;
+    button.disabled = roomMode;
     button.addEventListener("click", (event) => {
+      if (roomMode) {
+        return;
+      }
       const bounds = button.getBoundingClientRect();
       const pointerX = typeof event.clientX === "number" ? event.clientX : bounds.left;
       const localX = clamp(pointerX - bounds.left, 0, Math.max(1, bounds.width) - 1);
@@ -2470,8 +2607,14 @@ function getActiveToolLabel() {
 }
 
 function updateButtons() {
+  const roomMode = isLockedMode();
+  setRoomModeStatusElements();
+
   toolButtons.forEach((button) => {
     button.classList.toggle("is-active", button.dataset.tool === state.tool);
+    if (button.dataset.tool === "stamp") {
+      button.disabled = roomMode;
+    }
   });
 
   presetButtons.forEach((button) => {
@@ -2479,6 +2622,7 @@ function updateButtons() {
       "is-active",
       state.tool === "preset" && button.dataset.preset === state.activePreset
     );
+    button.disabled = roomMode;
   });
 
   brushButtons.forEach((button) => {
@@ -2487,6 +2631,7 @@ function updateButtons() {
 
   stampScaleButtons.forEach((button) => {
     button.classList.toggle("is-active", Number(button.dataset.scale) === state.stampScale);
+    button.disabled = roomMode;
   });
 
   fpsButtons.forEach((button) => {
@@ -2506,10 +2651,13 @@ function updateButtons() {
   if (frameReadout) {
     frameReadout.textContent = `Frame ${state.currentFrameIndex + 1} / ${state.frames.length}`;
   }
-  prevFrameButton.disabled = state.currentFrameIndex === 0;
-  nextFrameButton.disabled = state.currentFrameIndex === state.frames.length - 1;
+  prevFrameButton.disabled = roomMode || state.currentFrameIndex === 0;
+  nextFrameButton.disabled = roomMode || state.currentFrameIndex === state.frames.length - 1;
   if (replaceStampButton) {
-    replaceStampButton.disabled = !state.activeStampId;
+    replaceStampButton.disabled = roomMode || !state.activeStampId;
+  }
+  if (addStampButton) {
+    addStampButton.disabled = roomMode;
   }
 
   const currentBackgroundId = getBackgroundIdForFrame();
@@ -2527,6 +2675,45 @@ function updateButtons() {
   if (clearBackgroundButton) {
     clearBackgroundButton.disabled = !currentBackgroundId;
   }
+  if (newFrameButton) {
+    newFrameButton.disabled = roomMode;
+  }
+  if (duplicateFrameButton) {
+    duplicateFrameButton.disabled = roomMode;
+  }
+  if (deleteFrameButton) {
+    deleteFrameButton.disabled = roomMode;
+  }
+  if (clearFrameButton) {
+    clearFrameButton.disabled = roomMode;
+  }
+  if (newBackgroundButton) {
+    newBackgroundButton.disabled = roomMode;
+  }
+  if (splitBackgroundButton) {
+    splitBackgroundButton.disabled = roomMode || splitBackgroundButton.disabled;
+  }
+  if (holdBackgroundButton) {
+    holdBackgroundButton.disabled = roomMode || holdBackgroundButton.disabled;
+  }
+  if (clearBackgroundButton) {
+    clearBackgroundButton.disabled = roomMode || clearBackgroundButton.disabled;
+  }
+  if (soloBackgroundTrackButton) {
+    soloBackgroundTrackButton.disabled = roomMode;
+  }
+  if (playButton) {
+    playButton.disabled = roomMode;
+  }
+  if (exportAllFramesButton) {
+    exportAllFramesButton.disabled = roomMode;
+  }
+  if (exportGifButton) {
+    exportGifButton.disabled = roomMode;
+  }
+  fpsButtons.forEach((button) => {
+    button.disabled = roomMode;
+  });
   soloDrawingsButton?.classList.toggle("is-active", state.soloTrack === "frame");
   soloBackgroundTrackButton?.classList.toggle("is-active", state.soloTrack === "background");
   if (continueProjectButton) {
@@ -2600,6 +2787,10 @@ function activatePreset(presetName) {
 }
 
 function addBackgroundClip() {
+  if (blockRoomModeAction("Background is locked.")) {
+    return;
+  }
+
   settleTransientState();
   stopPlayback();
 
@@ -2630,6 +2821,10 @@ function addBackgroundClip() {
 }
 
 function splitCurrentBackgroundClip() {
+  if (blockRoomModeAction("Background is locked.")) {
+    return;
+  }
+
   settleTransientState();
   stopPlayback();
   const currentBackgroundClip = getBackgroundClipForFrame();
@@ -2663,12 +2858,20 @@ function splitCurrentBackgroundClip() {
 }
 
 function toggleSoloTrack(trackName) {
+  if (trackName === "background" && blockRoomModeAction("Background is locked.")) {
+    return;
+  }
+
   state.soloTrack = state.soloTrack === trackName ? null : trackName;
   refreshUI({ revealFrame: true, revealBackground: true });
   markProjectDirty();
 }
 
 function extendBackgroundHold() {
+  if (blockRoomModeAction("Background is locked.")) {
+    return;
+  }
+
   settleTransientState();
   stopPlayback();
   const currentBackgroundId = getBackgroundIdForFrame();
@@ -2700,6 +2903,10 @@ function extendBackgroundHold() {
 }
 
 function clearCurrentBackgroundCell() {
+  if (blockRoomModeAction("Background is locked.")) {
+    return;
+  }
+
   settleTransientState();
   stopPlayback();
   if (!getBackgroundIdForFrame()) {
@@ -2715,6 +2922,10 @@ function clearCurrentBackgroundCell() {
 }
 
 function addFrame() {
+  if (blockRoomModeAction("Frame and GIF controls are locked.")) {
+    return;
+  }
+
   settleTransientState();
   stopPlayback();
   const currentBackgroundId = getBackgroundIdForFrame();
@@ -2727,6 +2938,10 @@ function addFrame() {
 }
 
 function duplicateFrame() {
+  if (blockRoomModeAction("Frame and GIF controls are locked.")) {
+    return;
+  }
+
   settleTransientState();
   stopPlayback();
   const currentBackgroundId = getBackgroundIdForFrame();
@@ -2739,6 +2954,10 @@ function duplicateFrame() {
 }
 
 function deleteFrame() {
+  if (blockRoomModeAction("Frame and GIF controls are locked.")) {
+    return;
+  }
+
   settleTransientState();
   stopPlayback();
 
@@ -2757,6 +2976,10 @@ function deleteFrame() {
 }
 
 function clearFrame() {
+  if (blockRoomModeAction("Frame and GIF controls are locked.")) {
+    return;
+  }
+
   settleTransientState();
   stopPlayback();
   const frame = getCurrentFrame();
@@ -3272,6 +3495,10 @@ function stopPlayback() {
 }
 
 function togglePlayback() {
+  if (blockRoomModeAction("Playback is locked.")) {
+    return;
+  }
+
   if (state.isPlaying) {
     stopPlayback();
   } else {
@@ -3817,6 +4044,10 @@ function createGifBlob(frameCanvases, framesPerSecond) {
 }
 
 async function exportGif() {
+  if (blockRoomModeAction("GIF export is locked.")) {
+    return;
+  }
+
   settleTransientState({ preserveObjectSelection: true });
   setStatus("Building GIF...");
 
@@ -4010,10 +4241,18 @@ function normalizeLoadedState(settings, loadedStamps) {
   );
 }
 
-async function loadProjectSnapshot(projectData) {
+async function loadProjectSnapshot(projectData, options = {}) {
   if (!projectData || !Array.isArray(projectData.frames) || projectData.frames.length === 0) {
     throw new Error("Project file is missing drawing frames.");
   }
+
+  const nextTreefortRoom = normalizeTreefortRoomMeta(projectData);
+  const nextFileName =
+    typeof options.fileName === "string" && options.fileName.trim().length > 0
+      ? options.fileName.trim()
+      : nextTreefortRoom
+        ? DEFAULT_ROOM_NAME
+        : DEFAULT_PROJECT_NAME;
 
   settleTransientState();
   stopPlayback();
@@ -4072,6 +4311,15 @@ async function loadProjectSnapshot(projectData) {
   ensureBackgroundAssignmentsLength();
   pruneUnusedBackgroundClips();
   normalizeLoadedState(projectData.settings, loadedStamps);
+  currentTreefortRoom = nextTreefortRoom;
+  currentParchment = projectData.parchment ? cloneJson(projectData.parchment) : null;
+  currentProjectFileName = nextFileName;
+  if (isLockedMode()) {
+    state.currentFrameIndex = 0;
+    state.editTarget = "frame";
+    state.soloTrack = null;
+    stopPlayback();
+  }
   resetPointerState();
   refreshUI({ revealFrame: true, revealBackground: true });
 
@@ -4080,6 +4328,11 @@ async function loadProjectSnapshot(projectData) {
 }
 
 async function saveProject() {
+  if (isKeyMode()) {
+    await saveSpecialKey();
+    return;
+  }
+
   const snapshot = createProjectSnapshot({
     finalizeTransient: true,
     stopPlaybackBeforeSave: true,
@@ -4087,11 +4340,15 @@ async function saveProject() {
   const projectBlob = new Blob([JSON.stringify(snapshot, null, 2)], {
     type: "application/x-icyanimation+json",
   });
-  const didSave = await saveBlobWithPicker(projectBlob, "icyanimation-project.icy", {
-    description: "IcyAnimation Project",
-    accept: {
-      "application/x-icyanimation+json": [".icy"],
-    },
+  const didSave = await saveBlobWithPicker(projectBlob, getSuggestedProjectName(), {
+    description: isRoomMode() ? "Treefort Room Package" : "IcyAnimation Project",
+    accept: isRoomMode()
+      ? {
+          "application/x-icyanimation+json": [".room"],
+        }
+      : {
+          "application/x-icyanimation+json": [".icy"],
+        },
   });
   if (!didSave) {
     refreshUI({ revealFrame: true, revealBackground: true });
@@ -4101,16 +4358,87 @@ async function saveProject() {
   autosaveArmed = true;
   await writeAutosaveSnapshot();
   refreshUI({ revealFrame: true, revealBackground: true });
-  setStatus("Saved project file.");
+  setStatus(isRoomMode() ? "Saved room package." : "Saved project file.");
+}
+
+async function saveSpecialKey() {
+  settleTransientState({ preserveObjectSelection: true });
+  stopPlayback();
+
+  const canvas = renderFrameToCanvas(0, { includeHiddenLayers: true });
+  const keyArt = canvas.toDataURL("image/png");
+
+  const specialKey = {
+    app: "IcyAnimation",
+    questPhase: "awaiting-key",
+    guestId: currentParchment.guestId,
+    guestName: currentParchment.guestName,
+    keyArt,
+    savedAt: new Date().toISOString(),
+  };
+
+  const blob = new Blob([JSON.stringify(specialKey, null, 2)], {
+    type: "application/json",
+  });
+
+  const suggestedName = `${currentParchment.guestName || "key"}.SpecialKey`;
+  const didSave = await saveBlobWithPicker(blob, suggestedName, {
+    description: "TreeFort Special Key",
+    accept: { "application/json": [".SpecialKey"] },
+  });
+
+  if (!didSave) {
+    refreshUI({ revealFrame: true, revealBackground: true });
+    setStatus("Save canceled.");
+    return;
+  }
+
+  autosaveArmed = true;
+  await writeAutosaveSnapshot();
+  refreshUI({ revealFrame: true, revealBackground: true });
+
+  showChewDialog({
+    frames: CHEW_FRAMES,
+    text: `It looks like you drew a StickerBook Key. Huh. Good luck. Tell Gum I said, "Hmph".`,
+    actions: [{ label: "Got it!", onClick: hideChewDialog }],
+  });
 }
 
 async function openProjectText(projectText, fileName) {
   const projectData = JSON.parse(projectText);
-  await loadProjectSnapshot(projectData);
+
+  // TreeFort instruction files (.Parchment, .Room)
+  if (projectData?.app === "TreeFort" && projectData.questPhase) {
+    await handleTreefortInstruction(projectData, fileName);
+    return;
+  }
+
+  await loadProjectSnapshot(projectData, { fileName });
   resetHistoryWithCurrentState();
   autosaveArmed = true;
   await writeAutosaveSnapshot();
-  setStatus(`Opened ${fileName}.`);
+
+  if (isRoomMode()) {
+    setStatus(`Opened room package ${fileName}.`);
+    const roomChewText = typeof currentTreefortRoom?.chewMessage === "string" && currentTreefortRoom.chewMessage.trim().length > 0
+      ? currentTreefortRoom.chewMessage
+      : "Why do you keep coming back here? Oh. More stuff? Okay have fun.";
+    const roomChewMood = CHEW_FRAMES;
+    showChewDialog({
+      frames: roomChewMood,
+      text: roomChewText,
+      actions: [{ label: "Let's go!", onClick: hideChewDialog }],
+    });
+  } else if (isKeyMode()) {
+    setStatus(`Resumed key drawing.`);
+    showChewDialog({
+      frames: CHEW_FRAMES,
+      text: "Glad to see you're taking your time with that Key.",
+      actions: [{ label: "Let's go!", onClick: hideChewDialog }],
+    });
+  } else {
+    setStatus(`Opened ${fileName}.`);
+  }
 }
 
 async function openProjectFile(file) {
@@ -4123,7 +4451,7 @@ async function openProjectFile(file) {
   } catch (error) {
     console.error(error);
     refreshUI({ revealFrame: true, revealBackground: true });
-    setStatus("Open project failed. Choose an .icy IcyAnimation project file.");
+    setStatus(getOpenProjectFailureText());
   }
 }
 
@@ -4143,7 +4471,7 @@ async function openProjectWithPicker() {
   } catch (error) {
     console.error(error);
     refreshUI({ revealFrame: true, revealBackground: true });
-    setStatus("Open project failed. Choose an .icy IcyAnimation project file.");
+    setStatus(getOpenProjectFailureText());
   }
 }
 
@@ -4156,6 +4484,11 @@ function cycleBrush(direction) {
 }
 
 function goToFrame(index) {
+  if (isLockedMode() && index !== state.currentFrameIndex) {
+    setStatus(isKeyMode() ? "Key mode: single frame only." : "Room mode: frame and GIF controls are locked.");
+    return;
+  }
+
   settleTransientState();
   stopPlayback();
   state.currentFrameIndex = clamp(index, 0, state.frames.length - 1);
@@ -4163,6 +4496,11 @@ function goToFrame(index) {
 }
 
 function changeFrame(delta) {
+  if (isLockedMode() && delta !== 0) {
+    setStatus(isKeyMode() ? "Key mode: single frame only." : "Room mode: frame and GIF controls are locked.");
+    return;
+  }
+
   goToFrame(state.currentFrameIndex + delta);
 }
 
@@ -4214,7 +4552,11 @@ function handleShortcut(event) {
       setTool("eraser");
       break;
     case "t":
-      setTool("stamp");
+      if (isLockedMode()) {
+        setStatus("Stamps and preset objects are locked.");
+      } else {
+        setTool("stamp");
+      }
       break;
     case "x":
       setTool("object-delete");
@@ -4229,7 +4571,11 @@ function handleShortcut(event) {
       setTool("move");
       break;
     case "p":
-      activatePreset("note");
+      if (isLockedMode()) {
+        setStatus("Stamps and preset objects are locked.");
+      } else {
+        activatePreset("note");
+      }
       break;
     case "n":
       addFrame();
@@ -4422,6 +4768,163 @@ function attachEvents() {
   window.addEventListener("pagehide", () => {
     void writeAutosaveSnapshot();
   });
+}
+
+// ════════════════════════════════════════
+//  Chew Dialog System
+// ════════════════════════════════════════
+
+function showChewDialog({ frames = CHEW_FRAMES, text = "", actions = [] }) {
+  if (!chewDialog) return;
+
+  if (chewDialogText) chewDialogText.textContent = text;
+
+  clearInterval(chewDialogAnimInterval);
+  chewDialogAnimInterval = 0;
+  let frameIndex = 0;
+  if (chewDialogPortrait && frames.length > 0) {
+    chewDialogPortrait.src = frames[0];
+    if (frames.length > 1) {
+      chewDialogAnimInterval = setInterval(() => {
+        frameIndex = (frameIndex + 1) % frames.length;
+        chewDialogPortrait.src = frames[frameIndex];
+      }, 260);
+    }
+  }
+
+  if (chewDialogActions) {
+    chewDialogActions.innerHTML = "";
+    actions.forEach(({ label, onClick }) => {
+      const btn = document.createElement("button");
+      btn.className = "chew-dialog__btn";
+      btn.type = "button";
+      btn.textContent = label;
+      btn.addEventListener("click", () => {
+        if (typeof onClick === "function") onClick();
+      });
+      chewDialogActions.append(btn);
+    });
+  }
+
+  chewDialog.hidden = false;
+}
+
+function hideChewDialog() {
+  if (!chewDialog) return;
+  clearInterval(chewDialogAnimInterval);
+  chewDialogAnimInterval = 0;
+  chewDialog.hidden = true;
+}
+
+// ════════════════════════════════════════
+//  TreeFort Instruction Files
+// ════════════════════════════════════════
+
+async function handleTreefortInstruction(data, fileName) {
+  settleTransientState();
+  stopPlayback();
+  clearFloatingSelectionState();
+
+  if (data.questPhase === "awaiting-key") {
+    // .Parchment → Key Mode
+    currentParchment = {
+      guestId: data.guestId || "guest",
+      guestName: data.guestName || "friend",
+      questPhase: data.questPhase,
+    };
+    currentTreefortRoom = null;
+    currentProjectFileName = `${data.guestName || "key"}.SpecialKey`;
+
+    const initialBackground = createEmptyBackgroundClip();
+    state.frames = [createEmptyFrame()];
+    state.backgroundClips = [initialBackground];
+    state.backgroundAssignments = [initialBackground.id];
+    state.currentFrameIndex = 0;
+    state.editTarget = "frame";
+    state.soloTrack = null;
+    stopPlayback();
+
+    state.stamps = defaultStampSources.map((entry) => createStampEntry(entry));
+    if (state.stamps.length > 0) state.activeStampId = state.stamps[0].id;
+    await Promise.all(state.stamps.map((stampEntry) => loadStampEntry(stampEntry)));
+
+    resetPointerState();
+    resetHistoryWithCurrentState();
+    autosaveArmed = true;
+    await writeAutosaveSnapshot();
+    refreshUI({ revealFrame: true, revealBackground: true });
+
+    setStatus("Key mode: draw a key for your room!");
+
+    const name = data.guestName || "friend";
+    const parchmentMood = CHEW_FRAMES;
+    const parchmentText = typeof data.chewMessage === "string" && data.chewMessage.trim().length > 0
+      ? data.chewMessage
+      : `Hey where did you get this? Who gave this to you? Was it Gum? Hmph. This parchment is meant for Keys. So. Go ahead and draw a key. But be careful! Unlike rooms, you only get one chance to draw your own key, and it will last forever. So take your time.`;
+    showChewDialog({
+      frames: parchmentMood,
+      text: parchmentText,
+      actions: [{ label: "Let's draw!", onClick: hideChewDialog }],
+    });
+    return;
+  }
+
+  if (data.questPhase === "awaiting-room" || data.questPhase === "bonus-room") {
+    // .Room instruction → Room Mode
+    currentParchment = null;
+    const guestName = data.guestName || "friend";
+
+    currentTreefortRoom = {
+      schema: "treefort-room-hidden-meta",
+      schemaVersion: 1,
+      roomId: data.guestId || "guest-room",
+      spaceId: data.spaceId || "main",
+      roomMode: {
+        active: true,
+        singleFrameLocked: true,
+        timelineEditable: false,
+        gifToolsEnabled: false,
+        showBackgroundNotice: true,
+        backgroundNotice: "ROOM COLORS ARE NOT EDITABLE",
+      },
+    };
+    currentProjectFileName = `${guestName}.room`;
+
+    const initialBackground = createEmptyBackgroundClip();
+    state.frames = [createEmptyFrame()];
+    state.backgroundClips = [initialBackground];
+    state.backgroundAssignments = [initialBackground.id];
+    state.currentFrameIndex = 0;
+    state.editTarget = "frame";
+    state.soloTrack = null;
+    stopPlayback();
+
+    state.stamps = defaultStampSources.map((entry) => createStampEntry(entry));
+    if (state.stamps.length > 0) state.activeStampId = state.stamps[0].id;
+    await Promise.all(state.stamps.map((stampEntry) => loadStampEntry(stampEntry)));
+
+    resetPointerState();
+    resetHistoryWithCurrentState();
+    autosaveArmed = true;
+    await writeAutosaveSnapshot();
+    refreshUI({ revealFrame: true, revealBackground: true });
+
+    setStatus("Room mode: draw your room!");
+
+    const isBonus = data.questPhase === "bonus-room";
+    const chewMood = CHEW_FRAMES;
+    const chewText = typeof data.chewMessage === "string" && data.chewMessage.trim().length > 0
+      ? data.chewMessage
+      : isBonus
+        ? `I don't want to know. I promise not to look. Just draw what you need to draw.`
+        : `I can't believe you got a Room! Wait where's your Key? Did you let Gum take it? Wow. Okay yeah start drawing I guess. Draw yourself a bed.`;
+    showChewDialog({
+      frames: chewMood,
+      text: chewText,
+      actions: [{ label: "Let's draw!", onClick: hideChewDialog }],
+    });
+    return;
+  }
 }
 
 async function init() {
