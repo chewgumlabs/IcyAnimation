@@ -1,5 +1,15 @@
 # IcyAnimation
 
+> **Status: early AI-assisted personal tool.**
+>
+> IcyAnimation was built during an exploratory ChewGum Labs phase, before the
+> current ChewGum architecture, Truth Stewardship process, and contract-first
+> public artifact pipeline existed. It is left public as a personal animation
+> sketch and historical snapshot of an early AI-assisted build, not as current
+> ChewGum Animation architecture. Expect a monolithic app shape and rough edges;
+> the newer ChewGum work treats public tools as smaller, source-trailed
+> artifacts.
+
 IcyAnimation is Animation Software built for just one person: Icy. And whomever else Icy allows, I suppose.
 
 ![IcyAnimation screenshot](./Sample_Screenshot.png)
@@ -24,7 +34,7 @@ IcyAnimation is Animation Software built for just one person: Icy. And whomever 
 
 ## Run
 
-Open [/Volumes/Storage/IcyAnimation/index.html](/Volumes/Storage/IcyAnimation/index.html) directly in a browser, or serve the folder locally:
+Serve the folder locally:
 
 ```bash
 python3 -m http.server 4173
